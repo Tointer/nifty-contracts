@@ -18,34 +18,64 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
     mapping(uint256 => EnumerableSet.AddressSet) tokenSignRequest;
     mapping(uint256 => EnumerableSet.AddressSet) tokenSignes;
 
+    event RequestSign(uint tokenId, address[] addresses);
+    event Signed(uint tokenId, address signerAddress);
+
     constructor() ERC721("Nifty Memories", "NFTM") {}
 
-    function safeMint(address[] memory signees) public onlyOwner {
-        uint256 tokenId = _tokenIdCounter.current();
-        _tokenIdCounter.increment();
-        _safeMint(msg.sender, tokenId);
+    function safeMintSigneesSet(uint expireTime, address[] memory signees) public onlyOwner {
+         require(signees.length > 0, "Use public sign if you want no signees");
 
-        signRequestExpireDate[tokenId] = block.timestamp + 7 days;
+        uint tokenId = mintCommon(expireTime);
 
         for(uint i = 0; i < signees.length; i++){
              tokenSignRequest[tokenId].add(signees[i]);
         }
+
+        emit RequestSign(tokenId, signees);
     }
 
-    function signToken (uint256 tokenId) external{
-        require(tokenSignRequest[tokenId].contains(msg.sender), "You can't sign this");
-        require(block.timestamp < signRequestExpireDate[tokenId], "Sign request expired");
+    function safeMintPublicSign(uint expireTime) public onlyOwner {
+        uint tokenId = mintCommon(expireTime);
+    }
 
-        tokenSignRequest[tokenId].remove(msg.sender); 
-        tokenSignes[tokenId].add(msg.sender);
+    function mintCommon(uint expireTime) private returns (uint tokenId){
+        tokenId = _tokenIdCounter.current();
+        _tokenIdCounter.increment();
+        _safeMint(msg.sender, tokenId);
+        
+        if(expireTime != 0){
+            signRequestExpireDate[tokenId] = block.timestamp + expireTime;
+        }
+    }
+
+    function signToken(uint256 tokenId) external{
+        bool isPublic = isTokenPubliclySigned(tokenId);
+        require(tokenSignRequest[tokenId].contains(msg.sender) || isPublic, "You can't sign this");
+        require(isTokenSignExpired(tokenId), "Sign request expired");
+
+        if(!isPublic){
+            tokenSignRequest[tokenId].remove(msg.sender); 
+            tokenSignes[tokenId].add(msg.sender);
+        }
+
+        emit Signed(tokenId, msg.sender);
+    }
+
+    function isTokenPubliclySigned(uint tokenId) public view returns (bool){
+        return tokenSignRequest[tokenId].length() == 0;
+    }
+
+    function isTokenSignExpired(uint tokenId) public view returns (bool){
+        return signRequestExpireDate[tokenId] != 0 && block.timestamp < signRequestExpireDate[tokenId];
     }
 
     function getTokenSignees (uint256 tokenId) external view returns (address[] memory values){
-        return tokenSignRequest[tokenId].values();
+        return tokenSignes[tokenId].values();
     }
 
     function getTokenSignRequests (uint256 tokenId) external view returns (address[] memory values){
-        return tokenSignes[tokenId].values();
+        return tokenSignRequest[tokenId].values();
     }
 
     // The following functions are overrides required by Solidity.
