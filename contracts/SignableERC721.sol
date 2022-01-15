@@ -23,10 +23,10 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
 
     constructor() ERC721("Nifty Memories", "NFTM") {}
 
-    function safeMintSigneesSet(uint expireTime, address[] memory signees) public onlyOwner {
-         require(signees.length > 0, "Use public sign if you want no signees");
+    function safeMintPrivateSign(uint expireTime, address[] memory signees) public onlyOwner returns (uint tokenId){
+         require(signees.length > 0, "Use public sign with zero time if you want no signees");
 
-        uint tokenId = mintCommon(expireTime);
+        tokenId = mintCommon(expireTime);
 
         for(uint i = 0; i < signees.length; i++){
              tokenSignRequest[tokenId].add(signees[i]);
@@ -35,8 +35,8 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
         emit RequestSign(tokenId, signees);
     }
 
-    function safeMintPublicSign(uint expireTime) public onlyOwner {
-        uint tokenId = mintCommon(expireTime);
+    function safeMintPublicSign(uint expireTime) public onlyOwner returns (uint tokenId){
+        tokenId = mintCommon(expireTime);
     }
 
     function mintCommon(uint expireTime) private returns (uint tokenId){
@@ -52,13 +52,13 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
     function signToken(uint256 tokenId) external{
         bool isPublic = isTokenPubliclySigned(tokenId);
         require(tokenSignRequest[tokenId].contains(msg.sender) || isPublic, "You can't sign this");
-        require(isTokenSignExpired(tokenId), "Sign request expired");
+        require(isTokenSignActive(tokenId), "Sign request expired");
 
         if(!isPublic){
             tokenSignRequest[tokenId].remove(msg.sender); 
-            tokenSignes[tokenId].add(msg.sender);
         }
 
+        tokenSignes[tokenId].add(msg.sender);
         emit Signed(tokenId, msg.sender);
     }
 
@@ -66,7 +66,7 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
         return tokenSignRequest[tokenId].length() == 0;
     }
 
-    function isTokenSignExpired(uint tokenId) public view returns (bool){
+    function isTokenSignActive(uint tokenId) public view returns (bool){
         return signRequestExpireDate[tokenId] != 0 && block.timestamp < signRequestExpireDate[tokenId];
     }
 
