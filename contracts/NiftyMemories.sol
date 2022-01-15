@@ -6,18 +6,16 @@ import "./SignableERC721.sol";
 
 contract NiftyMemories{
 
-     mapping(address => address) accounts;
+     mapping(address => address) public accounts;
 
     function createAccount() public returns (address account){
         require(accounts[msg.sender] == address(0), "Account exists");
-        
-        bytes memory bytecode = type(SignableERC721).creationCode;
 
-        assembly {
-            account := create2(0, add(bytecode, 32), mload(bytecode), 0)
-        }
+        account = address(new SignableERC721());
 
         accounts[msg.sender] = account;
+
+        SignableERC721(account).transferOwnership(msg.sender);
     }
 
 }
