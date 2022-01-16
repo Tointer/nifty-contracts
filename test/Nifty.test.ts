@@ -3,8 +3,11 @@ import { Contract } from "ethers";
 import { ethers } from "hardhat";
 import { NiftyMemories } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { AbiCoder } from "ethers/lib/utils";
-import { AbiHelpers } from "hardhat/src/internal/util/abi-helpers";
+
+import chai from "chai";
+import { solidity } from "ethereum-waffle";
+
+chai.use(solidity);
 
 describe("Nifty Memories", function () {
 
@@ -12,6 +15,7 @@ describe("Nifty Memories", function () {
   let wallet0: SignerWithAddress;
   let wallet1: SignerWithAddress;
   let wallet2: SignerWithAddress;
+  let wallet3: SignerWithAddress;
 
   let account1Collection: Contract;
   
@@ -24,10 +28,7 @@ describe("Nifty Memories", function () {
 
     await niftyMemories.deployed();
 
-    const wallets = await ethers.getSigners();
-    wallet0 = wallets[0];
-    wallet1 = wallets[1];
-    wallet2 = wallets[2];
+    [wallet0, wallet1, wallet2, wallet3] = await ethers.getSigners();
 
     const accountAddress1 = await niftyMemories.connect(wallet1).callStatic.createAccount();
     await niftyMemories.connect(wallet1).createAccount();
@@ -36,11 +37,9 @@ describe("Nifty Memories", function () {
   });
 
   it("Create account", async () => {
-    console.log("chel");
     const accountAddress0 = await niftyMemories.connect(wallet0).callStatic.createAccount();
     console.log(accountAddress0);
     await niftyMemories.connect(wallet0).createAccount();
-    console.log("bruh");
     expect(await niftyMemories.accounts(wallet0.address)).to.equal(accountAddress0);
   });
 
@@ -59,10 +58,14 @@ describe("Nifty Memories", function () {
     await account1Collection.connect(wallet1).safeMintPrivateSign(1000, signees);
 
     expect(await account1Collection.connect(wallet2).signToken(0)).to.emit(account1Collection, "Signed").withArgs("0", wallet2.address);
+
     expect(await account1Collection.callStatic.getTokenSignRequests(0)).to.have.members([wallet0.address, wallet1.address]);
     expect(await account1Collection.callStatic.getTokenSignRequests(0)).to.have.length(2);
+
     expect(await account1Collection.callStatic.getTokenSignees(0)).to.have.members([wallet2.address]);
     expect(await account1Collection.callStatic.getTokenSignees(0)).to.have.length(1);
+
+    expect(account1Collection.connect(wallet3).signToken(0)).to.be.revertedWith("You can't sign this");
   });
 
   it("Public sign", async () => {
@@ -75,6 +78,11 @@ describe("Nifty Memories", function () {
     expect(await account1Collection.connect(wallet2).signToken(0)).to.emit(account1Collection, "Signed").withArgs("0", wallet2.address);
     expect(await account1Collection.callStatic.getTokenSignees(0)).to.have.members([wallet1.address, wallet2.address]);
     expect(await account1Collection.callStatic.getTokenSignees(0)).to.have.length(2);
+  });
+
+  it("Public sign with 0 time", async () => {
+    await account1Collection.connect(wallet1).safeMintPublicSign(0);
+    expect(account1Collection.connect(wallet3).signToken(0)).to.be.revertedWith("You can't sign this");
   });
 
 });
