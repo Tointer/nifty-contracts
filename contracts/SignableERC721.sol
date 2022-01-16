@@ -6,8 +6,10 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@opengsn/contracts/src/BaseRelayRecipient.sol";
+import "./SignPaymaster.sol";
 
-contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
+contract SignableERC721 is ERC721, ERC721Enumerable, Ownable, BaseRelayRecipient{
     using Counters for Counters.Counter;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -21,7 +23,12 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
     event RequestSign(uint tokenId, address[] addresses);
     event Signed(uint tokenId, address signerAddress);
 
-    constructor() ERC721("Nifty Memories", "NFTM") {}
+    address public myPaymaster;
+
+    constructor(address forwarder, address paymaster) ERC721("Nifty Memories", "NFTM") {
+        _setTrustedForwarder(forwarder);
+        myPaymaster = paymaster;
+    }
 
     function safeMintPrivateSign(uint expireTime, address[] memory signees) public onlyOwner returns (uint tokenId){
          require(signees.length > 0, "Use public sign with zero time if you want no signees");
@@ -70,11 +77,11 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
         return signRequestExpireDate[tokenId] != 0 && block.timestamp < signRequestExpireDate[tokenId];
     }
 
-    function getTokenSignees (uint256 tokenId) external view returns (address[] memory values){
+    function getTokenSignees(uint256 tokenId) external view returns (address[] memory values){
         return tokenSignes[tokenId].values();
     }
 
-    function getTokenSignRequests (uint256 tokenId) external view returns (address[] memory values){
+    function getTokenSignRequests(uint256 tokenId) external view returns (address[] memory values){
         return tokenSignRequest[tokenId].values();
     }
 
@@ -94,5 +101,17 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable {
         returns (bool)
     {
         return super.supportsInterface(interfaceId);
+    }
+
+    string public override versionRecipient = "2.2.0";
+
+    function _msgSender() internal view override(Context, BaseRelayRecipient)
+        returns (address sender) {
+        sender = BaseRelayRecipient._msgSender();
+    }
+
+    function _msgData() internal view override(Context, BaseRelayRecipient)
+        returns (bytes memory) {
+        return BaseRelayRecipient._msgData();
     }
 }
