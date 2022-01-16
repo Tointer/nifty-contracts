@@ -43,19 +43,19 @@ describe("Nifty Memories", function () {
     expect(await niftyMemories.accounts(wallet0.address)).to.equal(accountAddress0);
   });
 
-  it("Mint iwth private sign", async () => {
+  it("Mint with private sign", async () => {
     const signees : string[] = [wallet0.address, wallet1.address, wallet2.address];
-    expect(await account1Collection.connect(wallet1).safeMintPrivateSign(1000, signees)).to.emit(account1Collection, "Transfer").withArgs(zeroAddress, wallet1.address, "0");
-    expect(await account1Collection.connect(wallet1).safeMintPrivateSign(1000, signees)).to.emit(account1Collection, "RequestSign").withArgs("1", signees);
+    expect(await account1Collection.connect(wallet1).safeMintPrivateSign(1000, "", signees)).to.emit(account1Collection, "Transfer").withArgs(zeroAddress, wallet1.address, "0");
+    expect(await account1Collection.connect(wallet1).safeMintPrivateSign(1000, "", signees)).to.emit(account1Collection, "RequestSign").withArgs("1", signees);
   });
 
   it("Mint with public sign", async () => {
-    expect(await account1Collection.connect(wallet1).safeMintPublicSign(1000)).to.emit(account1Collection, "Transfer").withArgs(zeroAddress, wallet1.address, "0");
+    expect(await account1Collection.connect(wallet1).safeMintPublicSign(1000, "")).to.emit(account1Collection, "Transfer").withArgs(zeroAddress, wallet1.address, "0");
   });
 
   it("Private sign", async () => {
     const signees : string[] = [wallet0.address, wallet1.address, wallet2.address];
-    await account1Collection.connect(wallet1).safeMintPrivateSign(1000, signees);
+    await account1Collection.connect(wallet1).safeMintPrivateSign(1000, "", signees);
 
     expect(await account1Collection.connect(wallet2).signToken(0)).to.emit(account1Collection, "Signed").withArgs("0", wallet2.address);
 
@@ -69,7 +69,9 @@ describe("Nifty Memories", function () {
   });
 
   it("Public sign", async () => {
-    await account1Collection.connect(wallet1).safeMintPublicSign(1000);
+    await account1Collection.connect(wallet1).safeMintPublicSign(1000, "123");
+
+    expect(await account1Collection.callStatic.tokenURI(0)).to.equal("123");
 
     expect(await account1Collection.connect(wallet1).signToken(0)).to.emit(account1Collection, "Signed").withArgs("0", wallet1.address);
     expect(await account1Collection.callStatic.getTokenSignees(0)).to.have.members([wallet1.address]);
@@ -81,7 +83,7 @@ describe("Nifty Memories", function () {
   });
 
   it("Public sign with 0 time", async () => {
-    await account1Collection.connect(wallet1).safeMintPublicSign(0);
+    await account1Collection.connect(wallet1).safeMintPublicSign(1000, "");
     expect(account1Collection.connect(wallet3).signToken(0)).to.be.revertedWith("You can't sign this");
   });
 

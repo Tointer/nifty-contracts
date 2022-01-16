@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@opengsn/contracts/src/BaseRelayRecipient.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "./SignPaymaster.sol";
 
 contract SignableERC721 is ERC721, ERC721Enumerable, Ownable, BaseRelayRecipient{
@@ -19,6 +20,7 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable, BaseRelayRecipient
 
     mapping(uint256 => EnumerableSet.AddressSet) tokenSignRequest;
     mapping(uint256 => EnumerableSet.AddressSet) tokenSignes;
+    mapping(uint256 => string) uris;
 
     event RequestSign(uint tokenId, address[] addresses);
     event Signed(uint tokenId, address signerAddress);
@@ -30,10 +32,10 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable, BaseRelayRecipient
         myPaymaster = paymaster;
     }
 
-    function safeMintPrivateSign(uint expireTime, address[] memory signees) public onlyOwner returns (uint tokenId){
+    function safeMintPrivateSign(uint expireTime, string memory uri, address[] memory signees) public onlyOwner returns (uint tokenId){
          require(signees.length > 0, "Use public sign with zero time if you want no signees");
 
-        tokenId = mintCommon(expireTime);
+        tokenId = mintCommon(expireTime, uri);
 
         for(uint i = 0; i < signees.length; i++){
              tokenSignRequest[tokenId].add(signees[i]);
@@ -42,14 +44,15 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable, BaseRelayRecipient
         emit RequestSign(tokenId, signees);
     }
 
-    function safeMintPublicSign(uint expireTime) public onlyOwner returns (uint tokenId){
-        tokenId = mintCommon(expireTime);
+    function safeMintPublicSign(uint expireTime, string memory uri) public onlyOwner returns (uint tokenId){
+        tokenId = mintCommon(expireTime, uri);
     }
 
-    function mintCommon(uint expireTime) private returns (uint tokenId){
+    function mintCommon(uint expireTime, string memory uri) private returns (uint tokenId){
         tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
-        _safeMint(msg.sender, tokenId);
+        _safeMint(_msgSender(), tokenId);
+        uris[tokenId] = uri;
         
         if(expireTime != 0){
             signRequestExpireDate[tokenId] = block.timestamp + expireTime;
@@ -58,30 +61,39 @@ contract SignableERC721 is ERC721, ERC721Enumerable, Ownable, BaseRelayRecipient
 
     function signToken(uint256 tokenId) external{
         bool isPublic = isTokenPubliclySigned(tokenId);
-        require(tokenSignRequest[tokenId].contains(msg.sender) || isPublic, "You can't sign this");
+        require(tokenSignRequest[tokenId].contains(_msgSender()) || isPublic, "You can't sign this");
         require(isTokenSignActive(tokenId), "Sign request expired");
 
         if(!isPublic){
-            tokenSignRequest[tokenId].remove(msg.sender); 
+            tokenSignRequest[tokenId].remove(_msgSender()); 
         }
 
-        tokenSignes[tokenId].add(msg.sender);
-        emit Signed(tokenId, msg.sender);
+        tokenSignes[tokenId].add(_msgSender());
+        emit Signed(tokenId, _msgSender());
+    }
+
+    function tokenURI(uint256 tokenId) public view  override returns (string memory) {
+        require(_exists(tokenId), "ERC721Metadata: URI query for nonexistent token");
+        return uris[tokenId];
     }
 
     function isTokenPubliclySigned(uint tokenId) public view returns (bool){
+        require(_exists(tokenId), "No such token");
         return tokenSignRequest[tokenId].length() == 0;
     }
 
     function isTokenSignActive(uint tokenId) public view returns (bool){
+        require(_exists(tokenId), "No such token");
         return signRequestExpireDate[tokenId] != 0 && block.timestamp < signRequestExpireDate[tokenId];
     }
 
     function getTokenSignees(uint256 tokenId) external view returns (address[] memory values){
+        require(_exists(tokenId), "No such token");
         return tokenSignes[tokenId].values();
     }
 
     function getTokenSignRequests(uint256 tokenId) external view returns (address[] memory values){
+        require(_exists(tokenId), "No such token");
         return tokenSignRequest[tokenId].values();
     }
 
